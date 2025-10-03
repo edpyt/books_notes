@@ -1,1 +1,8 @@
-/home/edpyt/Documents/orgfiles/org_roam/20251002132145-The_Art_of_PostgreSQL_book.org
+:PROPERTIES:
+:ID: 0ec0df6d-941f-40ff-9dee-bc56c521e53b
+:END:
+#+TITLE: The Art of PostgreSQL book
+
+#+HTML_HEAD: <link rel="stylesheet" href="../../../assets/org.css" type="text/css" />
+
+
