@@ -3,14 +3,67 @@
 :END:
 #+TITLE: The Art of PostgreSQL book
 
-* 1. Structured Query Language
-  RDBMS and SQL are forcing developers to think in terms of data structure,
+* 1. Structured Query Language (SQL)
+  RDBMS (Relational DataBase Management System) and SQL are forcing developers to think in terms of data structure,
   and to declare both the data structure and the data set we want to obain
   via our queries.
 
-  #+begin_quoute
-  Bad programmers worry about the code.
-  Good programmers worry about data structures and their relatinships.
+  #+begin_quote
+  Bad programmers worry about the code. \\
+  Good programmers worry about data structures and their relatinships. \\
   --- Linus Torvalds
-  #+end_quoute
+  #+end_quote
+** Some of the Code is Written in SQL
+   The current SQL standard is SQL:2016.
+
+   If your application is already using the SQL programming language
+   and SQL engine, then as a developer it's important to fully understand how 
+   much can be achieved in SQL, and what service is implemented by this runtime
+   dependency in your software architecture.
+
+   SQL is a very powerful programming language, and it is a declarative one.
+   It's a wonderful tool to master, and once used properly it allows one to reduce
+   both code size and the development time for new features.
+
+** A First Use Case
+   Fetch NYSE /Excel/ file and load it into a PostgreSQL table.
+
+   How file looks:
+   #+begin_example
+   2010  1/4/2010    1,425,504,460  4,628,115   $38.495.460,645
+   2010  1/5/2010    1,754,011,760  5,394,016   $43.932.043,406
+   2010  1/6/2010    1,655,507,953  5,494,460   $43.816.749,660
+   #+end_example
+
+   #+begin_src sql 
+   begin;
+
+   drop table if exists factbook;
+
+   create table factbook
+   (
+      year int,
+      date date,
+      shares text,
+      trades text,
+      dollars text
+   );
+
+   \copy factbook from 'factbook.csv' with delimiter E'\t' null ''
+
+   alter table factbook
+   alter shares
+   type bigint
+   using replace(shares, ',', '')::bigint,
+
+   alter trades
+   type bigint
+   using replace(trades, ',', '')::bigint,
+
+   alter dollars
+   type bigint
+   using substring(replace(dollars, ',', '') from 2)::numeric;
+
+   commit;
+   #+end_src
 
