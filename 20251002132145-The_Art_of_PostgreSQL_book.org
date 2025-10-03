@@ -3,6 +3,14 @@
 :END:
 #+TITLE: The Art of PostgreSQL book
 
-#+HTML_HEAD: <link rel="stylesheet" href="../../../assets/org.css" type="text/css" />
-
 * 1. Structured Query Language
+  RDBMS and SQL are forcing developers to think in terms of data structure,
+  and to declare both the data structure and the data set we want to obain
+  via our queries.
+
+  #+begin_quoute
+  Bad programmers worry about the code.
+  Good programmers worry about data structures and their relatinships.
+  --- Linus Torvalds
+  #+end_quoute
+
