@@ -306,12 +306,21 @@
 
 * 3. Getting Ready to read this Book
   #+begin_src sh
-  docker run -d -p 127.0.0.1:5432:5432 -e POSTGRES_PASSWORD="1234" --name the_art_of_postgresql_book postgres:16.9-alpine
-  docker exec -it the_art_of_postgresql_book psql -U postgres
+  $ docker run -d -p 127.0.0.1:5432:5432 -e POSTGRES_PASSWORD="1234" --name the_art_of_postgresql_book postgres:16.9-alpine
+  $ docker exec -it the_art_of_postgresql_book psql -U postgres
   postgres=# show server_version;
   server_version 
   ----------------
   16.9
   (1 row)
   #+end_src
+
+  Need to import /Chinook/ database to PostgreSQL:
+  #+begin_src sh
+  $ docker exec -it the_art_of_postgresql_book psql -U postgres -c "create database chinook"
+  $ curl -fsSL "https://raw.githubusercontent.com/xivSolutions/ChinookDb_Pg_Modified/ed51a94152c31ba7b81fdc0bc7e32edca056a86a/chinook_pg_serial_pk_proper_naming.sql" | docker exec -i the_art_of_postgresql_book psql -U postgres -d chinook
+  #+end_src
+* 4. Busingess Logic
+
+** Every SQL query embeds some business logic
 
