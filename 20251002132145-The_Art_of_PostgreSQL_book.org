@@ -10,7 +10,8 @@
 
   #+begin_quote
   Bad programmers worry about the code. \\
-  Good programmers worry about data structures and their relatinships. \\
+  Good programmers worry about data structures and their relationships.
+
   --- Linus Torvalds
   #+end_quote
 ** Some of the Code is Written in SQL
@@ -66,4 +67,92 @@
 
    commit;
    #+end_src
+
+
+** Application Code and SQL
+   Query that list all entries we have in the month of February 2017:
+   #+begin_src sql
+   \set start '2017-02-01'
+
+   select date, to_char(shares, '99G999G999G999') as shares, to_char(trades, '99G999G999') as trades, to_char(dollars, 'L99G999G999G999') as dollars
+   from factbook
+   where date >= date :'start'
+   and date < date :'start' + interval '1 month'
+   order by date;
+   #+end_src
+
+   Result of the query:
+   | date       | shares        | trades    | dollars          |
+   |------------+---------------+-----------+------------------|
+   | 2017-02-01 | 1,161,001,502 | 5,217,859 | $ 44,660,060,305 |
+   | (n rows)   |               |           |                  |
+
+   Typical implementation of that expectation in Python
+   #+begin_src python
+   # /// script
+   # requires-python = ">=3.13"
+   # dependencies = [
+   #     "psycopg-binary",
+   # ]
+   # ///
+   from datetime import date
+   import sys
+   import psycopg2
+   import psycopg2.extras
+   from calendar import Calendar
+
+   CONNSTRING = "dbname=yesql application_name=factbook"
+
+
+   def fetch_month_data(year: int, month: int) -> dict[date, tuple[str, str, str]]:
+       date = "%d-%02d-01" % (year, month)
+       sql = """
+   select date, shared, trades, dollars
+   from factbook
+   where date >= date %s
+   and date < date %s + interval '1 month'
+   order by date;
+   """
+       pgconn = psycopg2.connect(CONNSTRING)
+       curs = pgconn.cursor()
+       curs.execute(sql, (date, date))
+
+       return {
+           date: (shares, trades, dollars)
+           for (date, shares, trades, dollars) in curs.fetchall()
+       }
+
+
+   def list_book_for_month(year: int, month: int):
+       data = fetch_month_data(year, month)
+       cal = Calendar()
+       print("%12s | %12s | %12s | %12s" % ("day", "shares", "trades", "dollars"))
+       print("%12s-+-%12s-+-%12s-+-%12s" % ("-" * 12, "-" * 12, "-" * 12, "-" * 12))
+
+       for day in cal.itermonthdates(year, month):
+           if day.month != month:
+               continue
+           if day in data:
+               shares, trades, dollars = data[day]
+           else:
+               shares, trades, dollars = 0, 0, 0
+           print("%12s | %12s | %12s | %12s" % (day, shares, trades, dollars))
+
+
+   if __name__ == "__main__":
+       year = int(sys.argv[1])
+       month = int(sys.argv[2])
+       list_book_for_month(year, month)
+   #+end_src
+
+   Output when running the program
+   #+begin_src sh
+   $ uv run main.py 2017 2
+   | day        | shares     | trades  | dollars     |
+      |------------+------------+---------+-------------|
+      | 2017-02-01 | 1161001502 | 5217859 | 44660060305 |
+      | etc
+   #+end_src
+** A Word about SQL Injection
+   [[https://imgs.xkcd.com/comics/exploits_of_a_mom.png]]
 
