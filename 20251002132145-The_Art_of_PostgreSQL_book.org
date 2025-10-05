@@ -251,3 +251,39 @@
        list_book_for_month(year, month)
    #+end_src
 
+
+** Back to Discovering SQL
+   Now of course it's possible to implement the same expectations with a single SQL
+   query, without any application code being spent on solving the problem:
+   #+begin_src sql
+   select cast(calendar.entry as date) as date,
+      coalesce(shares, 0) as shares,
+      coalesce(trades, 0) as trades,
+      to_char(
+      coalesce(dollars,0),
+      'L99G999G999G999'
+      ) as dollars
+   from
+   generate_series(date :'start',
+   date :'start' + interval '1 month'
+   - interval '1 day',
+   interval '1 day'
+   )
+   as calendar(entry)
+   left join factbook
+   on factbook.date = calendar.entry
+   order by date;
+   #+end_src
+
+   Here's the result of running this query:
+   | date       | shares     | trades  | dollars          |
+   |------------+------------+---------+------------------|
+   | 2017-02-01 | 1161001502 | 5217859 | $ 44,660,060,305 |
+   | 2017-02-02 | 1128144760 | 4586343 | $ 43,276,102,903 |
+   | etc        |            |         |                  |
+
+   Note that we replaced 60 lines of Python code with a simple enough SQL query
+   Here, the Python is doing and /Hash Join Nested Loop/ where PostgreSQL picks a 
+   /Merge Left Join/ over two ordered relations.
+
+* 2. Software Architecture
