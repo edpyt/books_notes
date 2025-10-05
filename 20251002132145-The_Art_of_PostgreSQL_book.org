@@ -156,3 +156,98 @@
 ** A Word about SQL Injection
    [[https://imgs.xkcd.com/comics/exploits_of_a_mom.png]]
 
+   It is advisable that read the documentation of current driver and understand how to send
+   SQL query parameters separately from the main SQL query text;
+   this is a reliable way to never have to worry about SQL injection problems ever again.
+
+   In particular, never build a query string by concatenating query arguments directly
+   into query strings, i.e. in the application client code.
+   Never use library, ORM or another tooling that would do that.
+
+   We were using the psycopg Python driver which is based on *libpq*. \\
+   A lot of PostgreSQL application drivers are based on the libpq C driver, which
+   implements the PostgreSQL protocols and is mantained alongside the main server's code.
+
+
+** PostgreSQL protocol: server-side prepared statements
+   Server-side Prepared Statements can be used in SQL thanks to the *PREPARE*
+   and *EXECUTE* commands syntax:
+   #+begin_src sql
+   prepare foo as
+   select date, shares, trades, dollars
+   from factbook
+   where date >= $1::date
+   and date < $1::date + interval '1 month'
+   order by date;
+
+   -- And then execute the prepared statement with a parameter
+   execute foo('2010-02-01') 
+   #+end_src
+
+   Remember: SQL injection happens when the SQL parser is fooled into beliving that
+   a parameter string is in fact a SQL query, and then the SQL engine goes on and
+   execute that SQL statement.
+
+   *asyncpg* PostgreSQL driver that implements the PostgreSQL protocol itself, and uses
+   server-side prepared statements.
+
+   This example is now safe from SQL injection by design, because the server-side
+   prepared statement protocol sends the query string and its arguments in separate protocol
+   messages:
+   #+begin_src python
+   # /// script
+   # requires-python = ">=3.13"
+   # dependencies = [
+   #     "asyncpg",
+   # ]
+   # ///
+   import sys
+   import asyncio
+   import asyncpg
+   import datetime
+   from calendar import Calendar
+
+   CONNSTRING = "postgresql://appdev@localhost/appdev?application_name=factbook"
+
+
+   async def fetch_month_data(year: int, month: int):
+       date = datetime.date(year, month, 1)
+       sql = """
+   select date, shares, trades, dollars
+   from factbook
+   where date >= $1::date
+   and date < $1::date + interval '1 month'
+   order by date;
+   """
+       pgconn = await asyncpg.connect(CONNSTRING)
+       stmt = await pgconn.prepare(sql)
+       res = {
+           date: (shares, trades, dollars)
+           for (date, shares, trades, dollars) in stmt.fetch(date)
+       }
+       await pgconn.close()
+       return res
+
+
+   def list_book_for_month(year: int, month: int):
+       data = asyncio.run(fetch_month_data(year, month))
+       cal = Calendar()
+       print("%12s | %12s | %12s | %12s" % ("day", "shares", "trades", "dollars"))
+       print("%12s-+-%12s-+-%12s-+-%12s" % ("-" * 12, "-" * 12, "-" * 12, "-" * 12))
+
+       for day in cal.itermonthdates(year, month):
+           if day.month != month:
+               continue
+           if day in data:
+               shares, trades, dollars = data[day]
+           else:
+               shares, trades, dollars = 0, 0, 0
+           print("%12s | %12s | %12s | %12s" % (day, shares, trades, dollars))
+
+
+   if __name__ == "__main__":
+       year = int(sys.argv[1])
+       month = int(sys.argv[2])
+       list_book_for_month(year, month)
+   #+end_src
+
