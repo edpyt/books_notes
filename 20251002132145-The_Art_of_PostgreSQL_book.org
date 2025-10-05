@@ -287,3 +287,31 @@
    /Merge Left Join/ over two ordered relations.
 
 * 2. Software Architecture
+  When designing your software architecture, you need to think about PostgreSQL
+  not as /storage/ layer, but rather as a /concurrent data access service/.
+  This service is capable of handling data processing.
+
+** Why PostgreSQL? 
+   That choice is down to several factors, all consequences of PostgreSQL
+   truly being /the world's most advanced open source database/:
+   - PostgreSQL is open source, available under a BSD like licence
+     named the *PostgreSQL licence*
+   - The PostgreSQL project is done completely in the open. \\
+     The project goes as far as self-hosting all requirements in order
+     to avoid being influenced by a particular company.
+   - PostgreSQL releases a new major version about once a year, following a
+     /when it's ready/ releaase cycle
+   - The PostgreSQL design allows enhancing SQL in very advanced ways
+
+
+* 3. Getting Ready to read this Book
+  #+begin_src sh
+  docker run -d -p 127.0.0.1:5432:5432 -e POSTGRES_PASSWORD="1234" --name the_art_of_postgresql_book postgres:16.9-alpine
+  docker exec -it the_art_of_postgresql_book psql -U postgres
+  postgres=# show server_version;
+  server_version 
+  ----------------
+  16.9
+  (1 row)
+  #+end_src
+
