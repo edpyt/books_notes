@@ -1,5 +1,6 @@
 :PROPERTIES:
 :ID: 0ec0df6d-941f-40ff-9dee-bc56c521e53b
+:BOOK_URL: [[https://storage.sbg.cloud.ovh.net/v1/AUTH_e5524010dbdf45ccb5cdac68b254c4f7/TAOP/TAOP-Volume-1.pdf]]
 :END:
 #+TITLE: The Art of PostgreSQL book
 
@@ -481,4 +482,63 @@
        else:
            print("albums.py <artist name>")
    #+end_src
+
+   Now the result of this code is as following:
+   #+begin_src sh
+   $ uv run main.py "Red Hot Chili Peppers"
+   Blood Sugar Sex Magik: 1:13:57.073000
+   By The Way: 1:08:49.951000
+   Californication: 0:56:25.461000
+   #+end_src
+** Correctness
+   When using multiple statements, it is necessary to setup the /isolation level/ correctly.
+   Also, the connection and transaction semantice of your code should be tightly controlled.
+
+   The SQL standard default four isolation level and PostgreSQL implements three of them,
+   leaving out /dirty reads/.
+
+   Think of the isolation levels like this:
+   - Read uncommited \\
+     PostgreSQL accepts this setting and actually implements /read commited/ here,
+     which is compliant with the SQL standard
+   - Read committed \\
+     This is the default and it allows your transaction to see other transactions
+     changes as soon as they are committed; it means that if you run the following
+     query twice in your transaction but someone else added or removed objects
+     from the stock, you will have different count at different points in your transaction
+     #+begin_src sql
+     select count(*) from stock;
+     #+end_src
+   - Repeatable read \\
+     In this isolation level, your transaction keeps the same /snapshot/ of the whole database
+     for its entire duration, from *BEGIN* to *COMMIT*.
+     It is very useful to have that for online backups - a straightforward use case for this
+     feature.
+   - Serializable \\
+     This level guarantees that a one-transaction-at-a-time ordering of what happens on the server
+     exists with the exact same result as what you're obtaining with concurrent activity.
+
+   By default working in /read commited/ isolation level.
+
+   Each running transaction in a PostgreSQL system can hae a different isolation level.
+
+** Efficiency
+   The correct soultion is eight lines of very basic SQL.
+
+   In the application's code solution, here's what happens under the hood:
+   - First, we fetch the artist from the database, so that's one network round trip
+     and one SQL query that returns the artist id and its name
+
+     note that we don't need the name of the artist in our use-save, so that's a useless
+     amount of bytes sent on the network, and also in memory in the application
+   - Then we do another network round-trip to fetch a list of albums for the artist_id
+     we just retrieved in the previous query, and store the result in the application's
+     memory
+   - Now for each album we send another SQL query via the network to the database server
+     and fetch the list of tracks and their properties, including the duration in milliseconds.
+   - In the same loop where we fetch the tracks durations in milliseconds, we sum them up
+     in the application's memory - we can approximate the CPU usage on the application side
+     to be the same as the one in the PostgreSQL server.
+   - Finnaly, the application can output the fetched data
+
 
