@@ -318,8 +318,9 @@
 
   Need to import /Chinook/ database to PostgreSQL:
   #+begin_src sh
-  $ docker exec -it the_art_of_postgresql_book psql -U postgres -c "create database chinook"
-  $ curl -fsSL "https://raw.githubusercontent.com/xivSolutions/ChinookDb_Pg_Modified/ed51a94152c31ba7b81fdc0bc7e32edca056a86a/chinook_pg_serial_pk_proper_naming.sql" | docker exec -i the_art_of_postgresql_book psql -U postgres -d chinook
+  $ docker exec -it the_art_of_postgresql_book psql -U postgres -c "create database appdev"
+  $ curl -fsSL "https://github.com/edpyt/TAOP-sql/raw/3a7c45887a4223a730a7659cb2325990d0696cfd/TheArtOfPostgreSQL-database-sql/chinook.sql" | docker exec -i the_art_of_postgresql_book psql -U postgres -d appdev 
+  $ docker exec -it the_art_of_postgresql_book psql -U postgres -d appdev -c "ALTER ROLE postgres SET search_path TO chinook;"
   #+end_src
 * 4. Business Logic
 
@@ -330,8 +331,8 @@
    #+begin_src sql
    select name
    from track
-   where album_id = 193
-   order by track_id;
+   where albumid = 193
+   order by trackid;
    #+end_src
    What business logic is embedded in that SQL statement?
    - The /select/ clause only mentions the /name/ column, and that's relevant
@@ -341,13 +342,13 @@
    - The /from/ clause only mentions the /track/ trable, somehow we decided that's
      all we need in this example, and that again is strongly tied to the logic being
      implemented
-   - The /where/ clause restricts the data output to the /album_id/ 193 which again
+   - The /where/ clause restricts the data output to the /albumid/ 193 which again
      is a direct translation of our business logic, with the added information
      that the album we want now is the 193rd one and we're left to wonder how 
      we know about it
    - Finally, the /order by/ clause implements the idead that we want to display
      the track names in the order they appear on the disk.
-     Not only that, it also incorporates the specific knowledge that the /track_id/
+     Not only that, it also incorporates the specific knowledge that the /trackid/
      column ordering is the same as the original disk ordering of the tracks.
 ** Business Logic Applies to Use Cases
    Display the list of albums from a given artist, each with its total duration.
@@ -355,8 +356,8 @@
    select album.title as album,
       sum(milliseconds) * interval '1 ms' as duration
    from album
-   join artist using(artist_id)
-   left join track using(album_id)
+   join artist using(artistid)
+   left join track using(albumid)
    where artist.name = 'Red Hot Chili Peppers'
    group by album
    order by album;
@@ -394,7 +395,7 @@
    from psycopg.rows import dict_row
 
    DEBUGSQL = False
-   PGCONNSTRING = "host=localhost user=postgres dbname=chinook password=1234"
+   PGCONNSTRING = "host=localhost user=postgres password=1234 dbname=appdev"
 
 
    @dataclass
@@ -441,7 +442,7 @@
    @dataclass
    class Artist(Model):
        tablename = "artist"
-       columns = ["artist_id", "name"]
+       columns = ["artistid", "name"]
 
        id: int
        title: str
@@ -450,7 +451,7 @@
    @dataclass
    class Album(Model):
        tablename = "album"
-       columns = ["album_id", "title"]
+       columns = ["albumid", "title"]
 
        id: int
        title: str
@@ -460,7 +461,7 @@
    @dataclass
    class Track(Model):
        tablename = "track"
-       columns = ["track_id", "name", "milliseconds", "bytes", "unit_price"]
+       columns = ["trackid", "name", "milliseconds", "bytes", "unitprice"]
 
        id: int
        name: str
@@ -473,12 +474,12 @@
        if len(sys.argv) > 1:
            pgconn = psycopg.connect(PGCONNSTRING)
            artist = Artist.fetchone(pgconn, name=sys.argv[1])
-           for album in Album.fetchall(pgconn, artist_id=artist.id):
+           for album in Album.fetchall(pgconn, artistid=artist.id):
                ms = 0
-               for track in Track.fetchall(pgconn, album_id=album.id):
+               for track in Track.fetchall(pgconn, albumid=album.id):
                    ms += track.duration
                    duration = timedelta(milliseconds=ms)
-                   print("%25s: %s" % (album.title, duration))
+               print("%25s: %s" % (album.title, duration))
        else:
            print("albums.py <artist name>")
    #+end_src
@@ -531,7 +532,7 @@
 
      note that we don't need the name of the artist in our use-save, so that's a useless
      amount of bytes sent on the network, and also in memory in the application
-   - Then we do another network round-trip to fetch a list of albums for the artist_id
+   - Then we do another network round-trip to fetch a list of albums for the artistid
      we just retrieved in the previous query, and store the result in the application's
      memory
    - Now for each album we send another SQL query via the network to the database server
@@ -540,5 +541,4 @@
      in the application's memory - we can approximate the CPU usage on the application side
      to be the same as the one in the PostgreSQL server.
    - Finnaly, the application can output the fetched data
-
-
+** Stored Procedures - a Data Access API
