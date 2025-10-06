@@ -320,7 +320,165 @@
   $ docker exec -it the_art_of_postgresql_book psql -U postgres -c "create database chinook"
   $ curl -fsSL "https://raw.githubusercontent.com/xivSolutions/ChinookDb_Pg_Modified/ed51a94152c31ba7b81fdc0bc7e32edca056a86a/chinook_pg_serial_pk_proper_naming.sql" | docker exec -i the_art_of_postgresql_book psql -U postgres -d chinook
   #+end_src
-* 4. Busingess Logic
+* 4. Business Logic
 
 ** Every SQL query embeds some business logic
+   Each and every and all SQL query contains some levels of business logic.
+
+   Example:
+   #+begin_src sql
+   select name
+   from track
+   where album_id = 193
+   order by track_id;
+   #+end_src
+   What business logic is embedded in that SQL statement?
+   - The /select/ clause only mentions the /name/ column, and that's relevant
+     to your application.
+     In the situation in which your application runs this query, the business logic
+     is only interested into the tracks names.
+   - The /from/ clause only mentions the /track/ trable, somehow we decided that's
+     all we need in this example, and that again is strongly tied to the logic being
+     implemented
+   - The /where/ clause restricts the data output to the /album_id/ 193 which again
+     is a direct translation of our business logic, with the added information
+     that the album we want now is the 193rd one and we're left to wonder how 
+     we know about it
+   - Finally, the /order by/ clause implements the idead that we want to display
+     the track names in the order they appear on the disk.
+     Not only that, it also incorporates the specific knowledge that the /track_id/
+     column ordering is the same as the original disk ordering of the tracks.
+** Business Logic Applies to Use Cases
+   Display the list of albums from a given artist, each with its total duration.
+   #+begin_src sql
+   select album.title as album,
+      sum(milliseconds) * interval '1 ms' as duration
+   from album
+   join artist using(artist_id)
+   left join track using(album_id)
+   where artist.name = 'Red Hot Chili Peppers'
+   group by album
+   order by album;
+   #+end_src
+   The output is:
+   | album                 | duration     |
+   |-----------------------+--------------|
+   | Blood Sugar Sex Magik | 01:13:57.073 |
+   | By The Way            | 01:08:49.951 |
+   | Californication       | 00:56:25.461 |
+
+   What we see here is a direct translation from the business case (or user story)
+   into a SQL query. The SQL implementation uses joins and computations that are specific
+   to both the data model and the use case we are solving.
+
+   Another implementation could be done with several queries and the computation
+   in the application's main code:
+   1. Fetch the list of albums for the selected artist
+   2. For each album, fetch the duration of every track in the album
+   3. In the application, sum up the durations per album
+
+   #+begin_src python
+   # /// script
+   # requires-python = ">=3.13"
+   # dependencies = [
+   #     "psycopg[binary]",
+   # ]
+   # ///
+   from dataclasses import dataclass
+   from typing import ClassVar, Self
+   import psycopg
+   import sys
+   from datetime import timedelta
+
+   from psycopg.rows import dict_row
+
+   DEBUGSQL = False
+   PGCONNSTRING = "host=localhost user=postgres dbname=chinook password=1234"
+
+
+   @dataclass
+   class Model:
+       tablename: ClassVar[str | None] = None
+       columns: ClassVar[list[str]] = []
+
+       @classmethod
+       def buildsql(cls, pgconn: psycopg.Connection, **kwargs) -> str | None:
+           if cls.tablename and kwargs:
+               cols = ", ".join('"%s"' % c for c in cls.columns)
+               qtab = '"%s"' % cls.tablename
+               sql = "select %s from %s where" % (cols, qtab)
+               for key in kwargs.keys():
+                   sql += "\"%s\" = '%s'" % (key, kwargs[key])
+                   if DEBUGSQL:
+                       print(sql)
+                   return sql
+
+       @classmethod
+       def fetchone(cls, pgconn: psycopg.Connection, **kwargs) -> Self | None:
+           if (
+               (cls.tablename and kwargs)  #
+               and (sql := cls.buildsql(pgconn, **kwargs))
+           ):
+               curs = pgconn.cursor(row_factory=dict_row)
+               curs.execute(sql)  # type: ignore[reportArgumentType]
+               if (result := curs.fetchone()) is not None:
+                   return cls(*result.values())
+
+       @classmethod
+       def fetchall(cls, pgconn: psycopg.Connection, **kwargs) -> list[Self]:
+           if (
+               (cls.tablename and kwargs)  #
+               and (sql := cls.buildsql(pgconn, **kwargs))
+           ):
+               curs = pgconn.cursor(row_factory=dict_row)
+               curs.execute(sql)  # type: ignore[reportArgumentType]
+               if resultset := curs.fetchall():
+                   return [cls(*result.values()) for result in resultset]
+           return []
+
+
+   @dataclass
+   class Artist(Model):
+       tablename = "artist"
+       columns = ["artist_id", "name"]
+
+       id: int
+       title: str
+
+
+   @dataclass
+   class Album(Model):
+       tablename = "album"
+       columns = ["album_id", "title"]
+
+       id: int
+       title: str
+       duration: float | None = None
+
+
+   @dataclass
+   class Track(Model):
+       tablename = "track"
+       columns = ["track_id", "name", "milliseconds", "bytes", "unit_price"]
+
+       id: int
+       name: str
+       duration: int
+       bytes: float
+       unitprice: int
+
+
+   if __name__ == "__main__":
+       if len(sys.argv) > 1:
+           pgconn = psycopg.connect(PGCONNSTRING)
+           artist = Artist.fetchone(pgconn, name=sys.argv[1])
+           for album in Album.fetchall(pgconn, artist_id=artist.id):
+               ms = 0
+               for track in Track.fetchall(pgconn, album_id=album.id):
+                   ms += track.duration
+                   duration = timedelta(milliseconds=ms)
+                   print("%25s: %s" % (album.title, duration))
+       else:
+           print("albums.py <artist name>")
+   #+end_src
 
