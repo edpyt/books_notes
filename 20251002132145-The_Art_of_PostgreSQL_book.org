@@ -599,5 +599,4 @@
    Using the [[https://github.com/nackjicholson/aiosql][aiosql]] Python library it is very
    easy to embed SQL code in Python and keep the SQL clean and tidy in .sql files.
 
-   The artist.sql file looks like this:
-   #+INCLUDE: "./assets/python/taop_book/chapter5/music_catalog/queries/artist.sql" src python
+   Needed .sql files can be found here: [[./assets/python/taop_book/chapter5/music_catalog/queries/][queries]]

@@ -1,0 +1,9 @@
+[project]
+name = "music-catalog"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.10"
+dependencies = [
+    "aiosql>=13.4",
+    "psycopg[binary]>=3.2.10",
+]
