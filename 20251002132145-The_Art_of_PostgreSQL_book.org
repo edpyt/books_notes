@@ -592,3 +592,12 @@
    If you want to use stored procedures, please always write them in SQL,
    and only switch to /PLpgSQL/ when necessary.
    If you want to be efficient, the default should be SQL.
+
+* A Small Application
+
+** Music Catalog
+   Using the [[https://github.com/nackjicholson/aiosql][aiosql]] Python library it is very
+   easy to embed SQL code in Python and keep the SQL clean and tidy in .sql files.
+
+   The artist.sql file looks like this:
+   #+INCLUDE: "./assets/python/taop_book/chapter5/music_catalog/queries/artist.sql" src python
