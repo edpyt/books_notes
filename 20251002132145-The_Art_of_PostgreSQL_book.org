@@ -542,3 +542,53 @@
      to be the same as the one in the PostgreSQL server.
    - Finnaly, the application can output the fetched data
 ** Stored Procedures - a Data Access API
+   When using PostgreSQL it is also possible to create server-side functions.
+   #+begin_src sql
+   create or replace function get_all_albums
+   (
+   in artistid bigint,
+   out album text,
+   out duration interval
+   )
+   returns setof record
+   language sql
+   as $$
+   select album.title as album,
+      sum(milliseconds) * interval '1 ms' as duration
+   from album
+   join artist using(artistid)
+   left join track using(albumid)
+   where artist.artistid = get_all_albums.artistid
+   group by album
+   order by album;
+   $$;
+   #+end_src
+
+   Then we can use this procedure with /lateral/ join technique:
+   #+begin_src sql
+   select album, duration
+   from artist
+   lateral get_all_albums(artistid)
+   where artist.name = 'Red Hot Chili Peppers';
+   #+end_src
+
+   And example we want to list the album with durations of the artists
+   who have exactly four albums registered in database:
+   #+begin_src sql
+   with four_albums as
+      (
+      select artistid
+      from album
+      group by artistid
+      having count(*) = 4
+   )
+   select artist.name, album, duration
+   from four_albums
+   join artist using(artistid),
+   lateral get_all_albums(artistid)
+   order by artistid, duration desc;
+   #+end_src
+** Procedural Code and Stored Procedures
+   If you want to use stored procedures, please always write them in SQL,
+   and only switch to /PLpgSQL/ when necessary.
+   If you want to be efficient, the default should be SQL.
