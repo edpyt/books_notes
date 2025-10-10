@@ -802,7 +802,7 @@
   code comments, consistent naming, unit testing and code revision systems.
 ** SQL style guidelines 
    A few examples of bad and good style:
-   -
+   - 1.
      #+begin_src sql
      SELECT title, name FROM albume LEFT JOIN track USING(albumid) WHERE albumid = 1 ORDER BY 2
      #+end_src
@@ -857,4 +857,17 @@
 
 ** Indexing for Queries
 
+   PostgreSQL automatically creates only those indexes that are needed for the system
+   to behave correctly.
+   Any and all other indexes are to be defined by the *application developers*
+   when they need a faster access method to some tuples.
+
+   An index cannot alter the result of query. An index only provides another access
+   method to the data, one that is faster than a sequential scan in most cases.
+   Query semantics and result set don't depend on indexes.
+
+   Implementing a user story (or a business case) with the help of SQL queries is
+   the job of the developer.
+   As the authore of the SQL statements, the developer also should be responsible for
+   choosing which indexes are needed to support their queries.
 
