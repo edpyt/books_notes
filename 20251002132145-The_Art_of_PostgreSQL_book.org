@@ -669,7 +669,7 @@
 
    With the /\set PROMPT1 '%~%*%# '/, /psql/ displays a little star in the prompt
    when there's a transaction in flight.
-   
+
    Example output with /ON_ERROR_ROLLBACK/ set to:
    - *off*
      #+begin_src
@@ -699,4 +699,162 @@
      appdev*# commit;
      COMMIT
      #+end_src
-** A Reporting Tool
+
+   For discover database schema use /\l+/:
+   #+begin_src
+   appdev# \set ECHO_HIDDEN true
+   appdev# \l+
+   ********* QUERY **********
+   SELECT
+   d.datname as "Name",
+   pg_catalog.pg_get_userbyid(d.datdba) as "Owner",
+   pg_catalog.pg_encoding_to_char(d.encoding) as "Encoding",
+   CASE d.datlocprovider WHEN 'c' THEN 'libc' WHEN 'i' THEN 'icu' END AS "Locale Provider",
+   d.datcollate as "Collate",
+   d.datctype as "Ctype",
+   d.daticulocale as "ICU Locale",
+   d.daticurules as "ICU Rules",
+   pg_catalog.array_to_string(d.datacl, E'\n') AS "Access privileges",
+   CASE WHEN pg_catalog.has_database_privilege(d.datname, 'CONNECT')
+         THEN pg_catalog.pg_size_pretty(pg_catalog.pg_database_size(d.datname))
+         ELSE 'No Access'
+   END as "Size",
+   t.spcname as "Tablespace",
+   pg_catalog.shobj_description(d.oid, 'pg_database') as "Description"
+   FROM pg_catalog.pg_database d
+   JOIN pg_catalog.pg_tablespace t on d.dattablespace = t.oid
+   ORDER BY 1;
+   **************************
+
+   List of databases
+   ─[ RECORD 1 ]─────┬───────────────────────────────────────────
+   Name              │ appdev
+   Owner             │ postgres
+   Encoding          │ UTF8
+   Locale Provider   │ libc
+   Collate           │ en_US.utf8
+   Ctype             │ en_US.utf8
+   ICU Locale        │ 
+   ICU Rules         │ 
+   Access privileges │ 
+   Size              │ 24 MB
+   Tablespace        │ pg_default
+   Description       │ 
+   ═[ RECORD 2 ]═════╪═══════════════════════════════════════════
+   Name              │ postgres
+   Owner             │ postgres
+   Encoding          │ UTF8
+   Locale Provider   │ libc
+   Collate           │ en_US.utf8
+   Ctype             │ en_US.utf8
+   ICU Locale        │ 
+   ICU Rules         │ 
+   Access privileges │ 
+   Size              │ 7361 kB
+   Tablespace        │ pg_default
+   Description       │ default administrative connection database
+   ═[ RECORD 3 ]═════╪═══════════════════════════════════════════
+   Name              │ template0
+   Owner             │ postgres
+   Encoding          │ UTF8
+   Locale Provider   │ libc
+   appdev# \l+
+   appdev# \set ECHO_HIDDEN false
+   appdev# select datname,
+   appdev-# pg_database_size(datname) as bytes
+   appdev-# from pg_database
+   appdev-# order by bytes desc;
+   datname  │  bytes   
+   ═══════════╪══════════
+   appdev    │ 25596387
+   template1 │  7602703
+   postgres  │  7537167
+   template0 │  7537167
+   (4 rows)
+   #+end_src
+
+   For edit last SQL query in visual editor:
+   #+begin_src
+   appdev# select datname,
+   pg_database_size(datname) as bytes
+   from pg_database
+   order by bytes desc;
+   datname  │  bytes   
+   ═══════════╪══════════
+   appdev    │ 25596387
+   template1 │  7602703
+   postgres  │  7537167
+   template0 │  7537167
+   (4 rows)
+
+   appdev# \e
+   select datname,
+   pg_database_size(datname) as bytes
+   from pg_database
+   order by bytes desc;
+   "/tmp/psql.edit.334.sql" 4L, 89B                                                                           1,1           All
+   #+end_src
+* 7. SQL is Code
+  We approached a good way to have SQL queries as .sql files in code base.
+
+  Now that SQL is actually code in application's source tree, we need to apply
+  the ssame methodoloy that you're used to: set a minimum lefel of expected quality,
+  code comments, consistent naming, unit testing and code revision systems.
+** SQL style guidelines 
+   A few examples of bad and good style:
+   -
+     #+begin_src sql
+     SELECT title, name FROM albume LEFT JOIN track USING(albumid) WHERE albumid = 1 ORDER BY 2
+     #+end_src
+     Query is using the old habit of all-caps SQL keywords. \\
+     We now have color screens and syntax highlighting and we don't write all-caps
+     code anymore
+   - 
+     #+begin_src sql
+     select title, name
+     from album left join track using(albumid)
+     where albumid=1
+     order by 2;
+     #+end_src
+     Now it's quite a bit easier to understand the structure of this query at a glance and to realize
+     that it is indeed a very basic SQL statement.
+
+
+* 8. Indexing Strategy
+** Indexing for Constraints 
+   PostgreSQL provides a rich set of tools for developers to manage concurrent access to data.
+   Internally, data consistency is mantained by using a multiversion model (Multiversion Concurrency Control,
+   MVCC).
+   This meands that each SQL statement sees a snapshot of data (a database version) as it was some time
+   ago, regardless of the current state of the underlying data.
+
+   Example with two transactions /t1/ and /t2/ happening in parallel:
+   #+begin_src
+   t1> insert into test(id) values(1);
+   t2> insert into test(id) values(1);
+   #+end_src
+   One of them has to be refused, because they are conflicting with the one another.
+   PostgreSQL knows how to do that, and thee implementation relies on the internal code being
+   able to acceess the indexes in a non-MVCC compliant way: the internal code of PostgreSQL knows
+   what the in-flight non-committed thansactions are doing.
+
+   The way the internals of PostgreSQL solve this problem is by relying on its index data structure in a
+   non-MVCC compliant way, and this capability is not visible to SQL level users.
+
+   So when you declare a /unique/ constraint, a /primary key/ constrain or an /exclusion constraint/
+   PostgreSQL creates an index for you:
+   #+begin_src
+   appdev# create table test(id integer unique);
+   CREATE TABLE
+   appdev# \d test
+                  Table "chinook.test"
+   Column │  Type   │ Collation │ Nullable │ Default 
+   ════════╪═════════╪═══════════╪══════════╪═════════
+   id     │ integer │           │          │ 
+   Indexes:
+      "test_id_key" UNIQUE CONSTRAINT, btree (id)
+   #+end_src
+
+** Indexing for Queries
+
+
