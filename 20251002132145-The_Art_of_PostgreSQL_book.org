@@ -593,10 +593,110 @@
    and only switch to /PLpgSQL/ when necessary.
    If you want to be efficient, the default should be SQL.
 
-* A Small Application
+* 5. A Small Application
 
 ** Music Catalog
    Using the [[https://github.com/nackjicholson/aiosql][aiosql]] Python library it is very
    easy to embed SQL code in Python and keep the SQL clean and tidy in .sql files.
 
    Needed .sql files can be found here: [[./assets/python/taop_book/chapter5/music_catalog/queries/][queries]]
+
+* 6. The SQL REPL - An Interactive Setup
+  New uses of PostgreSQL often want to find an andvanced visual query editing
+  tool and are confused when /psql/ is the answer.
+  Most PostgreSQL advanced users and experts don't even think about it and use
+  /psql/.
+
+  /psql/ implements a REPL (read-eval-print loop)
+
+** The psqlrc Setup
+   Full setup of /psql/ that being used:
+   #+begin_src psqlrc
+   -- Recommended psql config from Chapter 6: The SQL REPL — An Interactive Setup
+
+   -- These set commands are noisy; let's shush 'em.
+   -- \set QUIET ON
+
+   \set PROMPT1 '%~%x%# '
+   \x auto
+   \set ON_ERROR_STOP on
+   \set ON_ERROR_ROLLBACK interactive
+
+   \pset null '¤'
+   \pset linestyle 'unicode'
+   \pset unicode_border_linestyle single
+   \pset unicode_column_linestyle single
+   \pset unicode_header_linestyle double
+   \set intervalstyle to 'postgres_verbose';
+
+   \setenv LESS '-iMFXSx4R'
+   -- Take your pick: emacs, nano, vim, or install another
+   \setenv EDITOR 'vim'
+
+   \set QUIET OFF
+   #+end_src
+*** My setup with Docker
+    #+begin_src bash
+    $ docker exec -it the_art_of_postgresql_book apk add vim
+    $ docker exec -it the_art_of_postgresql_book bash -c "wget -P ~/ \
+       https://raw.githubusercontent.com/mikebranski/the-art-of-postgresql-docker/refs/heads/master/.psqlrc"
+    #+end_src
+
+** Transactions and psql Behavior 
+   We set several /psql/ variables that change its behavior:
+   - \set ON_ERROR_STOP on \\
+     It allows /psql/ to know that it is not to continue trying to execute all your
+     commands when a previous one is throwing an error.
+     It's primarily practical for scripts and be also set using the command line.
+   - \set ON_ERROR_ROLLBACK interactive \\
+     This settings changes how /psql/ behaves with respect to transactions.
+     It is a very good interactive setup, and must be avoided in batch scripts.
+
+     From the documentation, when set to:
+     - *on* \\
+       If a statement in a transaction block generates an error, the error is
+       ignored and the transaction continues.
+     - *interactive* \\
+       Such errors are only ignored in interactive sessions, and not when reading 
+       script files.
+     - *unset* or set to *off* \\
+       a statement in a transaction block that generates an error aborts the entire
+       transaction.
+
+   The error rollback mode works by issuing an implicit *SAVEPOINT*, just before each
+   command that is in a transaction block, and then rolling back to the savepoint
+   if the command fails.
+
+   With the /\set PROMPT1 '%~%*%# '/, /psql/ displays a little star in the prompt
+   when there's a transaction in flight.
+   
+   Example output with /ON_ERROR_ROLLBACK/ set to:
+   - *off*
+     #+begin_src
+     appdev# \set ON_ERROR_ROLLBACK off
+     appdev# begin;
+     BEGIN
+     appdev*# select 1/0;
+     ERROR:  division by zero
+     appdev!# select 1+1;
+     ERROR:  current transaction is aborted, commands ignored until end of transaction block
+     appdev!# rollback;
+     ROLLBACK  
+     #+end_src
+   - *interactive*
+     #+begin_src
+     appdev# \set ON_ERROR_ROLLBACK interactive
+     appdev# begin;
+     BEGIN
+     appdev*# select 1/0;
+     ERROR:  division by zero
+     appdev*# select 1+1;
+     ?column? 
+     ══════════
+           2
+     (1 row)
+
+     appdev*# commit;
+     COMMIT
+     #+end_src
+** A Reporting Tool
