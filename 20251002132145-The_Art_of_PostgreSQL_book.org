@@ -870,4 +870,14 @@
    the job of the developer.
    As the authore of the SQL statements, the developer also should be responsible for
    choosing which indexes are needed to support their queries.
+** PostgreSQL Index Access Methods
+   An /access method/ is a generic algorithm with a clean API that can be imlemented
+   for compatible data types.
+
+   #+begin_quote
+   PostgreSQL provides several index types: B-tree, Hash, GiST, SP-GiST, GIN and BRIN.
+   Each index type uses a different algorithm that is best suited to different types of queries.
+   By default, the *CREATE INDEX* command creates B-tree indexes, which fit the most common
+   situations.
+   #+end_quote
 
