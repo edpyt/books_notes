@@ -881,3 +881,52 @@
    situations.
    #+end_quote
 
+   Each index access method has been designed to solve specific use case:
+   - /B-Tree/, or balanced tree \\
+     Balanced indexes are the most common used, by a long shot, because they are very
+     efficient and provide an algorithm that applies to most cases.
+   - /GiST/, or generalized search tree \\
+     Its implementation in PostgreSQL allows support for 2-dimensional data types such
+     as the geometry /point/ or the /ranges/ data types. 
+   - /SP-GiST/, or spaced partitioned gist \\
+     /SP-GiST/ indexes are the only PostgreSQL index access method implementation that
+     support non-balanced disk-based data structures, such as quadtrees, k-d trees, and
+     radix trees (tries).
+     This is useful when you want to index 2-dimensional data with very different densities.
+   - /GIN/, or generalized inverted index \\
+     /GIN/ is designed for handling cases where the items to be indexed are composite values,
+     and the queries to be handled by the index need to search for element values that appear
+     within the composite items. \\
+     /GIN/ indexes are "inverted indexes" which are appropriate for data values that contain
+     multiple component values, such as arrays. An inverted index contains a separate entry
+     for each component value.
+   - /BRIN/, or block range indexes \\
+     Store summaries about the values stored in consecutive physical block ranges of a table.
+     Can support many different indexing strategies, and the particular operators with which a
+     BRIN index can be used vary depending on the indexing strategy.
+     For data types that have a linear sort order, the indexed data corresponds to the minimum
+     and maximum values of the values in the column for each block range.
+   - /Hash/ \\
+     Can only handle simple equality comparisons. 
+   - /Bloom filters/ \\
+     Is a space-efficient data structure that is used to test whether an element is a member
+     of a set. \\
+     This type of index is most useful when a table has many attributes and queries test arbitrary
+     combinations of them.
+     A traditional B-tree index is faster that a Bloom index, but it can require many B-tree
+     indexes to support all possible queries where one needs only a signle Bloom index. \\
+     Also, they are useful when the queries themselves are referencing most or all of those columns
+     in equality comparisons.
+** Adding Indexes 
+   Not every query needs to be that fast, and the requirements are mostly user defined.
+
+   Indexing needs analysis by listing every query that averages out to more that 10 milliseconds,
+   or some other sensible threshold for application.
+   The only way to understand where time is spent in a query is by using the *EXPLAIN* command
+   and reviewing the /query plan/. \\
+   From the documentation:
+   #+begin_quote
+   You can use the EXPLAIN command to see what query plan the planner creates for any query.
+   Plan-reading is an art that requries some experience to master ...
+   #+end_quote
+
