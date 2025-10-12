@@ -929,4 +929,30 @@
    You can use the EXPLAIN command to see what query plan the planner creates for any query.
    Plan-reading is an art that requries some experience to master ...
    #+end_quote
+* 9. An Interview with Yohann Gabory 
+  [[https://media.s-bol.com/OPj3zXW3mlvE/E8lg9RY/989x1200.jpg]]
+
+* 10. Get Some Data
+  We need f1db now:
+  #+begin_src bash
+  $ curl -fsSL "https://github.com/edpyt/TAOP-sql/raw/3a7c45887a4223a730a7659cb2325990d0696cfd/TheArtOfPostgreSQL-database-sql/f1db.sql" \
+     | docker exec -i the_art_of_postgresql_book \
+     psql -U postgres -d appdev 
+  $ docker exec -it the_art_of_postgresql_book psql -U postgres -c "ALTER ROLE postgres SET search_path TO f1db, public;"
+  #+end_src
+
+* 12. Queries, DML, DDL, TCL, DCL
+  - DML Stands for /data manipulation language/ and it covers /insert/, /update/ and /delete/ statements,
+    which are used to input data into the system
+  - DDL Stands for /data definition language/ and it covers /create/, /alter/ and /drop/ statements, which
+    are used to define on-disk data structures where to hold the data, and also their constraints
+  - TCL Stands for /transaction control language/ and includes /begin/ and /commit/ statements, and also
+    /rollback/, /start transaction/ and /set transaction/ commands.  \\  
+    It also includes the less well-known /savepoint/, /release savepoint/, and /rollback/ to /savepoint/
+    commands, and the two-phase commit protocol with /prepare commit/, /commit prepared/ and
+    /rollback prepared/ commands.
+  - DCL Stands for /data control language/ and is covered with the statements /grant/ and /revoke/
+  - PostgreSQL maintenance commands such as /vacuum/, /analyze/, /cluster/
+  - There further commands that are provided by PostgreSQL such as /prepare/ and /execute/,
+    /explain/, /listen/ and /notify/, /lock/ and /set/, and some more.
 
