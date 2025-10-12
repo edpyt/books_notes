@@ -955,4 +955,77 @@
   - PostgreSQL maintenance commands such as /vacuum/, /analyze/, /cluster/
   - There further commands that are provided by PostgreSQL such as /prepare/ and /execute/,
     /explain/, /listen/ and /notify/, /lock/ and /set/, and some more.
+* 13. Select, From, Where 
 
+** Projection (output): Select
+   The SQL /select/ clause introduces the list of output columns.
+   This is called a /projection/.
+
+   Adding a column to the /select/ list might have involve a lot of work, such as:
+   - Fetching data on-disk
+   - Possibly uncompressing data that is stored externally to the main table on-disk
+     structure, and loading those uncompressed bytes into the memory of the database
+     server
+   - Sending the data back over the network back to the client application
+*** Select Star 
+    There's another reason to refrain from using the /select star/ notation in application's code:
+    if you ever change the source relation definitions, then the same query now has a different
+    result set data structure, and you might have to reflect that change in the application's in-memory
+    data structures.
+*** Select Computed Values and Aliases
+    In the /SELECT/ clause it is possible to return computed values and to rename colums.  \\  
+    Example:
+    #+begin_src sql
+    select code,
+       format('%s %s', forename, surname) as fullname,
+       forename,
+       surname
+    from drivers;
+    #+end_src
+
+    The SQL standard gives a concatenation operator named || and we could achieve the same result
+    with a standard conforming query:
+    #+begin_src sql
+    select code,
+       forename || ' ' || surname as fullname,
+       forename,
+       surname
+    from drivers;
+    #+end_src
+
+*** PostgreSQL Processing Functions
+    #+begin_src sql
+    select date::date,
+       extract('isodow' from date) as dow,
+       to_char(date, 'dy') as day,
+       extract('isoyear' from date) as "iso year",
+       extract('week' from date) as week,
+       extract('day' from
+       (date + interval  '2 month - 1 day')
+       ) as feb,
+       extract('year' from date) as year,
+       extract('day' from 
+       (date + interval '2 month - 1 day')
+       ) = 29
+       as leap
+    from generate_series(date '2000-01-01',
+    date '2010-01-01',
+    interval '1 year')
+    as t(date);
+    #+end_src
+
+    The /generate_series()/ function returns a set of items, here all the dates of the
+    first day of the years from the 2000s.
+
+    Here's an extract from the PostgreSQL documentation about ISO years and week numbers:
+    #+begin_quote
+    By definition, ISO weeks start on Mondays and the first week of year contains January 4
+    of that year.
+    In other words, the first Thursday of a year is in week 1 of that year.
+    #+end_quote
+
+    It is very easy to do complex computations on dates in PostgreSQL, and that includes taking
+    care of time zones too.
+    Don't even think about coding such processing yourself, as it's full of oddities.
+
+** Data sources: From
