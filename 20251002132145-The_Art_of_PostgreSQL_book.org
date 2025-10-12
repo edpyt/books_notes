@@ -10,7 +10,7 @@
   via our queries.
 
   #+begin_quote
-  Bad programmers worry about the code. \\
+  Bad programmers worry about the code. \\  
   Good programmers worry about data structures and their relationships.
 
   --- Linus Torvalds
@@ -165,7 +165,7 @@
    into query strings, i.e. in the application client code.
    Never use library, ORM or another tooling that would do that.
 
-   We were using the psycopg Python driver which is based on *libpq*. \\
+   We were using the psycopg Python driver which is based on *libpq*. \\  
    A lot of PostgreSQL application drivers are based on the libpq C driver, which
    implements the PostgreSQL protocols and is mantained alongside the main server's code.
 
@@ -297,7 +297,7 @@
    truly being /the world's most advanced open source database/:
    - PostgreSQL is open source, available under a BSD like licence
      named the *PostgreSQL licence*
-   - The PostgreSQL project is done completely in the open. \\
+   - The PostgreSQL project is done completely in the open. \\  
      The project goes as far as self-hosting all requirements in order
      to avoid being influenced by a particular company.
    - PostgreSQL releases a new major version about once a year, following a
@@ -499,10 +499,10 @@
    leaving out /dirty reads/.
 
    Think of the isolation levels like this:
-   - Read uncommited \\
+   - Read uncommited \\  
      PostgreSQL accepts this setting and actually implements /read commited/ here,
      which is compliant with the SQL standard
-   - Read committed \\
+   - Read committed \\  
      This is the default and it allows your transaction to see other transactions
      changes as soon as they are committed; it means that if you run the following
      query twice in your transaction but someone else added or removed objects
@@ -510,12 +510,12 @@
      #+begin_src sql
      select count(*) from stock;
      #+end_src
-   - Repeatable read \\
+   - Repeatable read \\  
      In this isolation level, your transaction keeps the same /snapshot/ of the whole database
      for its entire duration, from *BEGIN* to *COMMIT*.
      It is very useful to have that for online backups - a straightforward use case for this
      feature.
-   - Serializable \\
+   - Serializable \\  
      This level guarantees that a one-transaction-at-a-time ordering of what happens on the server
      exists with the exact same result as what you're obtaining with concurrent activity.
 
@@ -644,22 +644,22 @@
 
 ** Transactions and psql Behavior 
    We set several /psql/ variables that change its behavior:
-   - \set ON_ERROR_STOP on \\
+   - \set ON_ERROR_STOP on \\  
      It allows /psql/ to know that it is not to continue trying to execute all your
      commands when a previous one is throwing an error.
      It's primarily practical for scripts and be also set using the command line.
-   - \set ON_ERROR_ROLLBACK interactive \\
+   - \set ON_ERROR_ROLLBACK interactive \\  
      This settings changes how /psql/ behaves with respect to transactions.
      It is a very good interactive setup, and must be avoided in batch scripts.
 
      From the documentation, when set to:
-     - *on* \\
+     - *on* \\  
        If a statement in a transaction block generates an error, the error is
        ignored and the transaction continues.
-     - *interactive* \\
+     - *interactive* \\  
        Such errors are only ignored in interactive sessions, and not when reading 
        script files.
-     - *unset* or set to *off* \\
+     - *unset* or set to *off* \\  
        a statement in a transaction block that generates an error aborts the entire
        transaction.
 
@@ -806,7 +806,7 @@
      #+begin_src sql
      SELECT title, name FROM albume LEFT JOIN track USING(albumid) WHERE albumid = 1 ORDER BY 2
      #+end_src
-     Query is using the old habit of all-caps SQL keywords. \\
+     Query is using the old habit of all-caps SQL keywords. \\  
      We now have color screens and syntax highlighting and we don't write all-caps
      code anymore
    - 
@@ -882,39 +882,39 @@
    #+end_quote
 
    Each index access method has been designed to solve specific use case:
-   - /B-Tree/, or balanced tree \\
+   - /B-Tree/, or balanced tree \\  
      Balanced indexes are the most common used, by a long shot, because they are very
      efficient and provide an algorithm that applies to most cases.
-   - /GiST/, or generalized search tree \\
+   - /GiST/, or generalized search tree \\  
      Its implementation in PostgreSQL allows support for 2-dimensional data types such
      as the geometry /point/ or the /ranges/ data types. 
-   - /SP-GiST/, or spaced partitioned gist \\
+   - /SP-GiST/, or spaced partitioned gist \\  
      /SP-GiST/ indexes are the only PostgreSQL index access method implementation that
      support non-balanced disk-based data structures, such as quadtrees, k-d trees, and
      radix trees (tries).
      This is useful when you want to index 2-dimensional data with very different densities.
-   - /GIN/, or generalized inverted index \\
+   - /GIN/, or generalized inverted index \\  
      /GIN/ is designed for handling cases where the items to be indexed are composite values,
      and the queries to be handled by the index need to search for element values that appear
-     within the composite items. \\
+     within the composite items. \\  
      /GIN/ indexes are "inverted indexes" which are appropriate for data values that contain
      multiple component values, such as arrays. An inverted index contains a separate entry
      for each component value.
-   - /BRIN/, or block range indexes \\
+   - /BRIN/, or block range indexes \\  
      Store summaries about the values stored in consecutive physical block ranges of a table.
      Can support many different indexing strategies, and the particular operators with which a
      BRIN index can be used vary depending on the indexing strategy.
      For data types that have a linear sort order, the indexed data corresponds to the minimum
      and maximum values of the values in the column for each block range.
-   - /Hash/ \\
+   - /Hash/ \\  
      Can only handle simple equality comparisons. 
-   - /Bloom filters/ \\
+   - /Bloom filters/ \\  
      Is a space-efficient data structure that is used to test whether an element is a member
-     of a set. \\
+     of a set. \\  
      This type of index is most useful when a table has many attributes and queries test arbitrary
      combinations of them.
      A traditional B-tree index is faster that a Bloom index, but it can require many B-tree
-     indexes to support all possible queries where one needs only a signle Bloom index. \\
+     indexes to support all possible queries where one needs only a signle Bloom index. \\  
      Also, they are useful when the queries themselves are referencing most or all of those columns
      in equality comparisons.
 ** Adding Indexes 
@@ -923,7 +923,7 @@
    Indexing needs analysis by listing every query that averages out to more that 10 milliseconds,
    or some other sensible threshold for application.
    The only way to understand where time is spent in a query is by using the *EXPLAIN* command
-   and reviewing the /query plan/. \\
+   and reviewing the /query plan/. \\  
    From the documentation:
    #+begin_quote
    You can use the EXPLAIN command to see what query plan the planner creates for any query.
