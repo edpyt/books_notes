@@ -1,6 +1,7 @@
 :PROPERTIES:
 :ID: 0ec0df6d-941f-40ff-9dee-bc56c521e53b
 :BOOK_URL: [[https://storage.sbg.cloud.ovh.net/v1/AUTH_e5524010dbdf45ccb5cdac68b254c4f7/TAOP/TAOP-Volume-1.pdf]]
+:ROAM_ALIASES: "taop"
 :END:
 #+TITLE: The Art of PostgreSQL book
 
@@ -1029,3 +1030,137 @@
     Don't even think about coding such processing yourself, as it's full of oddities.
 
 ** Data sources: From
+   The SQL /from/ clause introduces the data sources used in the query, and supports declaring
+   how those different sources relate to each other.
+   In the most basic form, our query is reading a data set from a single table:
+   #+begin_src sql
+   select code, driverref, forename, surname
+   from drivers;
+   #+end_src
+
+   To find the all-time top three drivers, we fetch how many times each driver had /position/
+   = 1 in the result table:
+   #+begin_src sql
+   select code, forename, surname, count(*) as wins
+   from drivers
+   join results using(driverid)
+   where position = 1
+   group by driverid
+   order by wins desc
+   limit 3;
+   #+end_src
+   The query uses an /inner join/ in between the /drivers/ and the /results/ table.
+   In both those tables, there is a /driverid/ column that we can use as a lookup
+   reference to associate data in between the two tables.
+
+** Understanding Joins
+   From the PostgreSQL documentation - [[https://www.postgresql.org/docs/current/queries-table-expressions.html#QUERIES-FROM][the FROM clause]]:
+
+   The *FROM* clause derives a table from one or more other tables given in a comman-separated
+   table reference list.
+   #+begin_example
+   FROM table_reference [, table_reference [, ...]]
+   #+end_example
+   A /table_reference/ can be a table name, or a derived table such as a subquery, a *JOIN* construct,
+   or complex combinations of these.
+
+   A joined table is a table derived from two other tables according to the rules of the particular
+   join type.
+   Inner, outer, and cross-joins are available. The general syntax of a joined table is
+   #+begin_example
+   T1 join_type T2 [ join_condition ]
+   #+end_example
+
+   *Join Types*:
+   - /Cross join/ \\  
+     #+begin_example
+     T1 CROSS JOIN T2
+     #+end_example
+
+     For every possible combination of rows from *T1* and *T2*, the joined table will contain a row
+     consisting of all columns in *T1* followed by all columns in *T2*.
+     If the tables have N and M rows respectively, the joined table will have N * M rows.
+
+     *FROM T1 CROSS JOIN T2* is equivalent to *FROM T1 INNER JOIN T2 ON TRUE*
+   - /Qualified joins/ \\  
+     #+begin_example
+     T1 { [INNER] | { LEFT | RIGHT | FULL } [OUTER] } JOIN T2 ON boolean_expression
+     T1 { [INNER] | { LEFT | RIGHT | FULL } [OUTER] } JOIN T2 USING ( join column list )
+     T1 NATURAL { [INNER] | { LEFT | RIGHT | FULL } [OUTER] } JOIN T2
+     #+end_example
+     The words *INNER* and *OUTER* are optional in all forms. *INNER* is the default;
+     *LEFT*, *RIGHT*, and *FULL* imply an outer join.
+
+     The /join condition/ is specified in the *ON* or *USING* clause, or implicitly by
+     the word *NATURAL*.
+
+     The possible types of qualified join are:
+     * *INNER JOIN* \\  
+       For each row R1 of T1, the joined table has a row for each row in T2 that satisfies
+       the join condition with R1
+     * *LEFT OUTER JOIN* \\  
+       First, an inner join is performed.
+       Then, for each row in T1 that does not satisfy the join condition with any row in T2,
+       a joined row is added with null values in columns of T2.
+       Thus, the joined table always has at least one row for each row in T1.
+     * *RIGHT OUTER JOIN* \\  
+       First, an inner is performed.
+       Then, for each row in T2 that does not satisfy the join condition with any row in T1,
+       a joined row is added with null values in columns of T1.
+       This is the converse of a left join, the result table will always have a row for each
+       row in T2.
+     * *FULL OUTER JOIN* \\  
+       First, an inner join is performed.
+       Then, for each row in T1 that does not satisfy the join condition with any row in T2,
+       a joined row is added with null values in columns of T2.
+       Also, for each row of T2 that does not satisfy the join condition with any row in T1,
+       a joined row with null values in the columns of T1 is added.
+
+     The *ON* clause is the most general kind of join condition: it takes a Boolean value
+     expression of the same kind as is used in a *WHERE* clause. A pair of rows from *T1*
+     and *T2* match if the *ON* expression evaluates to true.
+
+     The *USING* clause is a shorthand that allows you to take advantage of the specific situation
+     where both sides of the join use the same name for the joining column(s).
+     For example, joining *T1* and *T2* with *USING(a,b)* produces the join condition
+     *ON T1.a = T2.a AND T1.b = T2.b*
+
+     Finally, *NATURAL* is a shorthand form of *USING*: it forms a *USING* list consisting of 
+     all column names that appear in both input tables.
+     As with *USING*, these columns appear only once in the output table. If there are no
+     common column names, *NATURAL JOIN* behaves like *CROSS JOIN*.
+*** Example with joins
+    Assume we have tables:
+    - t1 \\  
+      | num | name |
+      |-----+------|
+      | 1   | a    |
+      | 2   | b    |
+      | 3   | c    |
+    - t2 \\  
+      | num | value |
+      |-----+-------|
+      | 1   | xxx   |
+      | 3   | yyy   |
+      | 5   | zzz   |
+
+    Then we got the following results for the various join:
+    * 
+      #+begin_example
+      => SELECT * FROM t1 CROSS JOIN t2;
+      #+end_example
+      | num | name | num | value |
+      |-----+------+-----+-------|
+      | 1   | a    | 1   | xxx   |
+      | 1   | a    | 3   | yyy   |
+      | 1   | a    | 5   | zzz   |
+      | 2   | b    | 1   | xxx   |
+      | 2   | b    | 3   | yyy   |
+      | 2   | b    | 5   | zzz   |
+      | 3   | c    | 1   | xxx   |
+      | 3   | c    | 3   | yyy   |
+      | 3   | c    | 5   | zzz   |
+
+
+
+
