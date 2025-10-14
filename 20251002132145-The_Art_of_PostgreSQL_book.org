@@ -1447,3 +1447,100 @@
    | James        | Hunt      | McLaren     | 10    | 6      |
    | Clay         | Regazzoni | Shadow      | 10    | 5      |
    (10 rows)
+
+* 14. Order By, Limit, No Offset
+** Ordering with Order By 
+   The SQL /ORDER BY/ clause is pretty well-known because SQL doesn't guarantee
+   any ordering of the result set of any query except when you use the /order by/ clause.
+
+   Example:
+   #+begin_src sql
+   select year, url
+   from seasons
+   order by year desc
+   limit 3;
+   #+end_src
+   | year | url                                                   |
+   |------+-------------------------------------------------------|
+   | 2017 | https://en.wikipedia.org/wiki/2017_Formula_One_season |
+   | 2016 | https://en.wikipedia.org/wiki/2016_Formula_One_season |
+   | 2015 | http://en.wikipedia.org/wiki/2015_Formula_One_season  |
+
+   What is more interesting about it is the /explain plan/ of the query, where we see
+   PostgreSQL follows the primary key index of the table in a backward direction
+   in order to return our three most recent entries.
+   #+begin_src sql
+   explain (costs off)
+   select year, url
+   from seasons
+   order by year desc
+   limit 3;
+   #+end_src
+   | QUERY PLAN                                     |
+   |------------------------------------------------|
+   | Limit                                          |
+   | -> Index Scan Backward using idx_.* on seasons |
+** kNN Ordering and GiST indexes
+   Another use case for /order by/ is to implement /k nearest neighbours/.
+
+   Let's find out the ten nearest circuits to Paris, France, which is at longitude
+   2.349014 and latitude 48.864716. That's a kNN search with k = 10:
+   #+begin_src sql
+   select name, location, country
+   from circuits
+   order by point(lng, lat) <-> point(2.349014, 48.864716)
+   limit 10;
+   #+end_src
+
+   #+begin_example
+                name              │     location     │ country 
+   ═══════════════════════════════╪══════════════════╪═════════
+    Rouen-Les-Essarts             │ Rouen            │ France
+    Reims-Gueux                   │ Reims            │ France
+    Circuit de Nevers Magny-Cours │ Magny Cours      │ France
+    Le Mans                       │ Le Mans          │ France
+    Nivelles-Baulers              │ Brussels         │ Belgium
+    Dijon-Prenois                 │ Dijon            │ France
+    Charade Circuit               │ Clermont-Ferrand │ France
+    Brands Hatch                  │ Kent             │ UK
+    Zolder                        │ Heusden-Zolder   │ Belgium
+    Circuit de Spa-Francorchamps  │ Spa              │ Belgium
+   (10 rows)
+   #+end_example
+
+   The /point/ datatype is a very useful PostgreSQL addition. For a proper PostgreSQL
+   experience, we can have a location column of point type in our circuits table and 
+   index it using *GiST*:
+   #+begin_src sql
+   begin;
+
+   alter table f1db.circuits add column position point;
+   update f1db.circuits set position = point(lng,lat);
+   create index on f1db. circuits using gist(position);
+
+   commit;
+   #+end_src
+
+   Query plan now that we have a *GiST* index defined:
+   #+begin_src sql
+   explain (costs off, buffers, analyze)
+   select name, location, country
+   from circuits
+   order by position <-> point(2.349014, 48.864716)
+   limit 10;
+   #+end_src
+
+   #+begin_example
+                                                    QUERY PLAN                                              
+   ══════════════════════════════════════════════════════════════════════════════════════════════════════
+    Limit (actual time=0.029..0.034 rows=10 loops=1)
+      Buffers: shared hit=8
+      ->  Index Scan using circuits_position_idx2 on circuits (actual time=0.029..0.033 rows=10 loops=1)
+            Order By: ("position" <-> '(2.349014,48.864716)'::point)
+            Buffers: shared hit=8
+    Planning:
+      Buffers: shared hit=51
+    Planning Time: 0.236 ms
+    Execution Time: 0.051 ms
+   (9 rows)
+   #+end_example
