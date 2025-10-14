@@ -1593,3 +1593,80 @@
    (3 rows)
    #+end_example
 
+* 15. Group By, Having, With, Union All 
+
+** Aggregates (aka Map/Reduce): Group By 
+   The /group by/ clause introduces aggregates in SQL, and allows implementing much
+   the same thing as /map//reduce/ in other systems: map your data into different
+   groups, and in each group reduce the data set to a single value.
+
+   As a first example we can count how many races have been run in each decade:
+   #+begin_src sql
+   select extract('year'
+      from date_trunc('decade', date))
+      as decade,
+      count(*)
+   from races
+   group by decade
+   order by decade;
+   #+end_src
+   #+begin_example
+    decade │ count 
+   ════════╪═══════
+      1950 │    84
+      1960 │   100
+      1970 │   144
+      1980 │   156
+      1990 │   162
+      2000 │   174
+      2010 │   156
+   (7 rows)
+   #+end_example
+
+   The difference between each decade is easy to compute thanks to /window function/.
+   Let's have a preview:
+   #+begin_src sql
+   with races_per_decade
+      as (
+      select extract('year'
+         from date_trunc('decade', date))
+         as decade,
+         count(*) as nbraces
+      from races
+      group by decade
+      order by decade
+   )
+   select decade, nbraces,
+      case
+         when lag(nbraces,1)
+         over(order by decade) is null
+         then ''
+
+         when nbraces - lag(nbraces, 1)
+         over(order by decade) < 0
+         then format('-3%s',
+         lag(nbraces, 1)
+         over(order by decade)
+         - nbraces)
+
+         else format('+%3s',
+         nbraces - lag(nbraces,1)
+         over(order by decade))
+
+      end as evolution
+   from races_per_decade;
+   #+end_src
+   #+begin_example
+    decade │ nbraces │ evolution 
+   ════════╪═════════╪═══════════
+      1950 │      84 │ 
+      1960 │     100 │ + 16
+      1970 │     144 │ + 44
+      1980 │     156 │ + 12
+      1990 │     162 │ +  6
+      2000 │     174 │ + 12
+      2010 │     156 │ -318
+   (7 rows)
+   #+end_example
+
+
