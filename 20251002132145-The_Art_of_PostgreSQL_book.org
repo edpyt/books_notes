@@ -1544,3 +1544,52 @@
     Execution Time: 0.051 ms
    (9 rows)
    #+end_example
+
+** No Offset, and how to implement pagination
+   Using the /offset/ clause is very bad of query performances ([[https://use-the-index-luke.com/sql/partial-results/fetch-next-page][Paging Through Results]]).
+
+   The /offset/ clause is going to cause SQL query plan to read all the result anyway and then
+   discard most of it until reaching the /offset/ count.
+
+   The proper way to implement pagination is to use index lookups, you cna do that with the /row()/
+   construct.
+
+   Example:
+   #+begin_src sql
+   select lap, drivers.code, position,
+      milliseconds * interval '1ms' as laptime
+   from laptimes
+   join drivers using(driverid)
+   where raceid = 972
+   order by lap, position
+   fetch first 3 rows only;
+   #+end_src
+   #+begin_example
+    lap │ code │ position │   laptime    
+   ═════╪══════╪══════════╪══════════════
+      1 │ BOT  │        1 │ 00:02:05.192
+      1 │ VET  │        2 │ 00:02:07.101
+      1 │ RAI  │        3 │ 00:02:10.53
+   (3 rows)
+   #+end_example
+
+   Next query shows the next page of results:
+   #+begin_src sql
+   select lap, drivers.code, position,
+      milliseconds * interval '1ms' as laptime
+   from laptimes
+   join drivers using(driverid)
+   where raceid = 972
+   and row(lap,position) > (1,3)
+   order by lap, position
+   fetch first 3 rows only;
+   #+end_src
+   #+begin_example
+    lap │ code │ position │   laptime    
+   ═════╪══════╪══════════╪══════════════
+      1 │ HAM  │        4 │ 00:02:11.18
+      1 │ VER  │        5 │ 00:02:12.202
+      1 │ MAS  │        6 │ 00:02:13.501
+   (3 rows)
+   #+end_example
+
