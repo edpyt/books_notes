@@ -1650,7 +1650,7 @@
          - nbraces)
 
          else format('+%3s',
-         nbraces - lag(nbraces,1)
+         nbraces - lag(nbraces,1)https://duckduckgo.com/?t=ffab&q=%D0%BC%D0%B0%D1%87%D1%82%D0%B0&ia=web
          over(order by decade))
 
       end as evolution
@@ -1665,8 +1665,273 @@
       1980 │     156 │ + 12
       1990 │     162 │ +  6
       2000 │     174 │ + 12
-      2010 │     156 │ -318
+      2010 │     156 │ - 18
    (7 rows)
    #+end_example
 
+   Search for all drivers who failed to finish any single race they participated in over
+   their whole career:
+   #+begin_src sql
+   with counts as
+      (
+      select driverid, forename, surname,
+         count(*) as races,
+         bool_and(position is null) as never_finished
+      from drivers
+      join results using(driverid)
+      join races using(raceid)
+      group by driverid
+   )
+   select driverid, forename, surname, races
+   from counts
+   where never_finished
+   order by races desc;
+   #+end_src
 
+   Now, we can find out if some seasons were less lucky than others on that basis and search
+   for drivers who didn't finish a single race thay participated into, per season:
+   #+begin_src sql
+   with counts as
+      (
+      select date_trunc('year', date) as year,
+         count(*) filter(where position is null) as outs,
+         bool_and(position is null) as never_finished
+      from drivers
+      join results using(driverid)
+      join races using(raceid)
+      group by date_trunc('year', date), driverid
+   )
+   select extract(year from year) as season,
+      sum(outs) as "#times any driver didn't finish a race"
+   from counts
+   where never_finished
+   group by season
+   order by sum(outs) desc
+   limit 5;
+   #+end_src
+** Common Table Expressions: With
+   Most dangerous seasons in terms of accidents:
+   #+begin_src sql
+   select extract(year from races.date) as season,
+      count(*)
+      filter(where status = 'Accident') as accidents
+   from results
+   join status using(statusid)
+   join races using(raceid)
+   group by season
+   order by accidents desc
+   limit 5;
+   #+end_src
+
+   #+begin_example
+    season │ accidents 
+   ════════╪═══════════
+      1977 │        60
+      1975 │        54
+      1976 │        48
+      1978 │        48
+      1985 │        36
+   (5 rows)
+   #+end_example
+
+   It seems the most dangerous seasons of all time are clustered at the end
+   of the 70s and the beginning of the 80s, so zoom on this period:
+   #+begin_src sql
+   with accidents as
+      (
+      select extract(year from races.date) as season,
+         count(*) as participants,
+         count(*) filter(where status = 'Accident') as accidents
+      from results
+      join status using(statusid)
+      join races using(raceid)
+      group by season
+   )
+   select season,
+      round(100.0 * accidents / participants, 2) as pct,
+      repeat(
+      text '🟦',
+      ceil(100*accidents/participants)::int
+      )
+      as bar
+   from accidents
+   where season between 1974 and 1990
+   order by season;
+   #+end_src
+
+   #+begin_example
+    season │  pct  │             bar              
+   ════════╪═══════╪══════════════════════════════
+      1974 │  3.67 │ 🟦🟦🟦
+      1975 │ 14.88 │ 🟦🟦🟦🟦🟦🟦🟦🟦🟦🟦🟦🟦🟦🟦
+      1976 │ 11.06 │ 🟦🟦🟦🟦🟦🟦🟦🟦🟦🟦🟦
+      1977 │ 12.58 │ 🟦🟦🟦🟦🟦🟦🟦🟦🟦🟦🟦🟦
+      1978 │ 10.19 │ 🟦🟦🟦🟦🟦🟦🟦🟦🟦🟦
+      1979 │  7.20 │ 🟦🟦🟦🟦🟦🟦🟦
+      1980 │  7.83 │ 🟦🟦🟦🟦🟦🟦🟦
+      1981 │  3.56 │ 🟦🟦🟦
+      1982 │  0.86 │ 
+      1983 │  0.00 │ 
+      1984 │  5.58 │ 🟦🟦🟦🟦🟦
+      1985 │  8.87 │ 🟦🟦🟦🟦🟦🟦🟦🟦
+      1986 │  6.07 │ 🟦🟦🟦🟦🟦🟦
+      1987 │  5.97 │ 🟦🟦🟦🟦🟦
+      1988 │  0.61 │ 
+      1989 │  0.81 │ 
+      1990 │  1.29 │ 🟦
+   (17 rows)
+   #+end_example
+
+   To compute the driver/constructor who won the most points in total in the races that year:
+   #+begin_src sql
+   with points as
+      (
+      select year as season, driverid, constructorid,
+         sum(points) as points
+      from results join races using(raceid)
+      group by grouping sets((year, driverid),
+      (year, constructorid))
+      having sum(points) > 0
+      order by season, points desc
+   ),
+   tops as
+      (
+      select season,
+         max(points) filter(where driverid is null) as ctops,
+         max(points) filter(where constructorid is null) as dtops
+      from points
+      group by season
+      order by season, dtops, ctops
+   ),
+   champs as
+      (
+      select tops.season,
+         champ_driver.driverid,
+         champ_driver.points,
+         champ_constructor.constructorid,
+         champ_constructor.points
+      from tops
+      join points as champ_driver
+      on champ_driver.season = tops.season
+      and champ_driver.constructorid is null
+      and champ_driver.points = tops.dtops
+      join points as champ_constructor
+      on champ_constructor.season = tops.season
+      and champ_constructor.driverid is null
+      and champ_constructor.points = tops.ctops
+   )
+   select season,
+      format('%s %s', drivers.forename, drivers.surname)
+      as "Driver's Champion",
+      constructors.name as "Constructor's champion"
+   from champs
+   join drivers using(driverid)
+   join constructors using(constructorid)
+   order by season;
+   #+end_src
+
+   #+begin_example
+    season │ Driver's Champion  │ Constructor's champion 
+   ════════╪════════════════════╪════════════════════════
+      1985 │ Alain Prost        │ McLaren
+      1986 │ Alain Prost        │ Williams
+      1987 │ Nelson Piquet      │ Williams
+      1988 │ Alain Prost        │ McLaren
+      ...
+      2015 │ Lewis Hamilton     │ Mercedes
+      2016 │ Nico Rosberg       │ Mercedes
+      2017 │ Lewis Hamilton     │ Mercedes
+   (68 rows)
+   #+end_example
+
+** Distinct On
+   PostgreSQL distint clause documentation:
+   #+begin_quote
+   SELECT DISTINCT ON (expression [,...]) keeps only the first row of each set of rows
+   where the given expressions evaluate to equal.
+   The DISTINCT ON expressions are interpreted using the same rules as for ORDER BY.
+   Note that the "first row" of each set is unpredictable unless ORDER BY is used
+   to ensure that the desired row appears first.
+   #+end_quote
+
+   So it is possible to return the list of drivers who ever won a race in the whole
+   Formula One history with the following query:
+   #+begin_src sql
+   select distinct on (driverid)
+      forename, surname
+   from results
+   join drivers using(driverid)
+   where position = 1;
+   #+end_src
+   There 107 of them
+
+   The classic way to have a single result per driver in SQL would be to aggregate
+   over them, creating a group per driver:
+   #+begin_src sql
+   select forename, surname
+   from results join drivers using(driverid)
+   where position = 1
+   group by drivers.driverid;
+   #+end_src
+
+** Result Sets Operations
+   SQL also includes set operations for combining queries results sets into a single
+   one.
+
+   The set operations are /union/, /intersect/, and /except/.
+   As expected with /union/ you can assemble a result set from the result of several queries:
+   #+begin_src sql
+   (
+   select raceid,
+      'driver' as type,
+      format('%s %s', drivers.forename, drivers.surname)
+      as name,
+      driverstandings.points
+   from driverstandings
+   join drivers using(driverid)
+   where raceid = 972
+   and points > 0
+   )
+   union all
+   (
+   select raceid,
+      'constructor' as type,
+      constructors.name as name,
+      constructorstandings.points
+   from constructorstandings
+   join constructors using(constructorid)
+   where raceid = 972
+   and points > 0
+   )
+   order by points desc;
+   #+end_src
+
+   #+begin_example
+    raceid │    type     │       name       │ points 
+   ════════╪═════════════╪══════════════════╪════════
+       972 │ constructor │ Mercedes         │    136
+       972 │ constructor │ Ferrari          │    135
+       972 │ driver      │ Sebastian Vettel │     86
+       972 │ driver      │ Lewis Hamilton   │     73
+       972 │ driver      │ Valtteri Bottas  │     63
+       972 │ constructor │ Red Bull         │     57
+       972 │ driver      │ Kimi Räikkönen   │     49
+       972 │ driver      │ Max Verstappen   │     35
+       972 │ constructor │ Force India      │     31
+       972 │ driver      │ Daniel Ricciardo │     22
+       972 │ driver      │ Sergio Pérez     │     22
+       972 │ constructor │ Williams         │     18
+       972 │ driver      │ Felipe Massa     │     18
+       972 │ constructor │ Toro Rosso       │     13
+       972 │ driver      │ Carlos Sainz     │     11
+       972 │ driver      │ Esteban Ocon     │      9
+       972 │ constructor │ Haas F1 Team     │      8
+       972 │ driver      │ Nico Hülkenberg  │      6
+       972 │ constructor │ Renault          │      6
+       972 │ driver      │ Romain Grosjean  │      4
+       972 │ driver      │ Kevin Magnussen  │      4
+       972 │ driver      │ Daniil Kvyat     │      2
+   (22 rows)
+   #+end_example
+
+* 16. Understanding Nulls
