@@ -1936,3 +1936,32 @@
 
 * 16. Understanding Nulls
 
+  #+begin_src sql
+  select a::text, b::text,
+     (a=b)::text as "a=b",
+     format('%s = %s',
+     coalesce(a::text, 'null'),
+     coalesce(b::text, 'null')) as op,
+     format('is %s',
+     coalesce((a=b)::text, 'null')) as result
+  from (values(true), (false), (null)) v1(a)
+  cross join
+  (values(true), (false), (null)) v2(b);
+  #+end_src
+
+  #+begin_example
+     a   │   b   │  a=b  │      op       │  result  
+  ═══════╪═══════╪═══════╪═══════════════╪══════════
+   true  │ true  │ true  │ true = true   │ is true
+   true  │ false │ false │ true = false  │ is false
+   true  │ ¤     │ ¤     │ true = null   │ is null
+   false │ true  │ false │ false = true  │ is false
+   false │ false │ true  │ false = false │ is true
+   false │ ¤     │ ¤     │ false = null  │ is null
+   ¤     │ true  │ ¤     │ null = true   │ is null
+   ¤     │ false │ ¤     │ null = false  │ is null
+   ¤     │ ¤     │ ¤     │ null = null   │ is null
+  (9 rows)
+  #+end_example
+
+* 17. Understandin Window Functions
